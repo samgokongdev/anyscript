@@ -1,0 +1,191 @@
+-- BAHAN KONVERSI --
+SELECT
+	a.*,
+	b.sp2p,
+	b.tgl_sp2p,
+	CASE
+    WHEN day(b.tgl_sp2p) = 0 THEN a.tgl_sp2
+		else b.tgl_sp2p
+END as tgl_konv
+FROM
+	`lhpnows` as a
+LEFT JOIN
+sp2 as b
+on a.np2 = b.np2 
+
+-- jt14hs --
+SELECT 
+a.*,
+b.lhp,
+b.tgl_lhp,
+TIMESTAMPDIFF(day,now(),a.jt) as sisa
+FROM `sp2` as a
+left join 
+lhpnows as b
+on a.np2 =  b.np2
+where ISNULL(b.lhp)
+and DATEDIFF(a.jt,now()) > 0
+and DATEDIFF(a.jt,now()) < 14 
+
+-- jtw14hs --
+SELECT
+	* 
+FROM
+	`master_jt_tepatwaktu`
+where 
+sisa_hari > 0
+and sisa_hari < 14 
+
+-- konversis --
+SELECT 
+*,
+CASE
+    WHEN left(kode_rik,1) = 1 and TIMESTAMPDIFF(MONTH,tgl_konv,tgl_lhp) < 8 THEN 1
+		WHEN left(kode_rik,1) = 1 and TIMESTAMPDIFF(MONTH,tgl_konv,tgl_lhp) > 7 THEN 0.8
+		WHEN left(kode_rik,1) != 1 and TIMESTAMPDIFF(MONTH,tgl_konv,tgl_lhp) < 8 THEN 0.3
+		WHEN left(kode_rik,1) != 1 and TIMESTAMPDIFF(MONTH,tgl_konv,tgl_lhp) > 7 THEN 0.25
+END as konversi
+FROM `bahankonversi`
+order by lhp 
+
+--lhpnows --
+select * from master_lhp where th_lhp = year(now()) and up2 = 056 order by lhp asc 
+
+-- master_jt_tepawaktu --
+SELECT 
+a.*,
+b.lhp,
+b.tgl_lhp,
+CASE
+    WHEN day(a.tgl_sp2p) = 0 THEN DATE_ADD(a.tgl_sp2, interval 8 month)
+		else DATE_ADD(a.tgl_sp2p, interval 8 month)
+END as jt_tepat_waktu,
+CASE
+    WHEN day(a.tgl_sp2p) = 0 THEN TIMESTAMPDIFF(DAY, now(), DATE_ADD(a.tgl_sp2, interval 8 month))
+		else TIMESTAMPDIFF(DAY, now() ,DATE_ADD(a.tgl_sp2, interval 8 month))
+END as sisa_hari
+
+FROM `sp2` as a
+left join 
+lhpnows as b
+on a.np2 =  b.np2
+where ISNULL(b.lhp) 
+
+--master_lhp--
+SELECT
+	* 
+FROM
+	`lhp` 
+WHERE
+	th_lhp BETWEEN 2017 
+	AND 2022 
+ORDER BY
+	tgl_lhp ASC 
+  
+--masterpen056--
+select * from mpn
+union
+select * from spm
+union
+select * from pbk 
+
+--masterskp--
+select * from skp2016
+union
+select * from skp2017
+union
+select * from skp2018
+union
+select * from skp2019
+union
+select * from skp2020
+union
+select * from skp2021
+union
+select * from skp2022 
+
+--penerimaanskp--
+select
+a.*,
+d.Nama,
+b.*,
+c.id,
+c.nomor,
+c.sumber_dok
+from
+masterpen056 as a
+LEFT JOIN
+teguran as b
+on a.no_kohir = b.kohir
+left join
+masterskp as c
+on a.no_kohir = c.nomor
+left join
+masterfile as d
+on a.npwp = d.npwp
+where 
+left(a.kjs,1) = 3 and
+c.sumber_dok = "LPP" and 
+a.thn_byr = YEAR(now()) 
+
+--pkm_exclude_penagihan--
+select
+a.*,
+d.Nama,
+b.*,
+c.id,
+c.nomor,
+c.sumber_dok
+from
+masterpen056 as a
+LEFT JOIN
+teguran as b
+on a.no_kohir = b.kohir
+left join
+masterskp as c
+on a.no_kohir = c.nomor
+left join
+masterfile as d
+on a.npwp = d.npwp
+where 
+left(a.kjs,1) = 3 and
+right(a.no_kohir,2) != "22" and
+b.nomor_st IS NULL and
+c.sumber_dok = "LPP" 
+
+--rikjalans--
+SELECT 
+a.*,
+b.lhp,
+b.tgl_lhp,
+CASE
+    WHEN day(a.tgl_sp2p) = 0 THEN DATE_ADD(a.tgl_sp2, interval 8 month)
+		else DATE_ADD(a.tgl_sp2p, interval 8 month)
+END as jt_tepat_waktu,
+CASE
+    WHEN day(a.tgl_sp2p) = 0 THEN TIMESTAMPDIFF(DAY, now(), DATE_ADD(a.tgl_sp2, interval 8 month))
+		else TIMESTAMPDIFF(DAY, now() ,DATE_ADD(a.tgl_sp2, interval 8 month))
+END as sisa_hari
+
+FROM `sp2` as a
+left join 
+lhpnows as b
+on a.np2 =  b.np2
+where ISNULL(b.lhp) 
+
+--summary_skps--
+SELECT
+	SUM(case WHEN jns_skp = "SKPKB" THEN jumlah_ket END) as skpkb,
+	SUM(case WHEN jns_skp = "SKPLB" THEN jumlah_ket END) as skplb,
+	SUM(case WHEN jns_skp = "SKPSTP" THEN jumlah_ket END) as skpstp
+FROM
+	`masterskp`
+where 
+tahun_ket = YEAR(NOW()) 
+
+--summary_tepat_waktus--
+SELECT
+	sum( CASE WHEN konversi = 1 or konversi = 0.3 then 1 end ) as rik_tepat_waktu,
+	sum( CASE WHEN konversi = 0.8 or konversi = 0.25 then 1 end ) as rik_tidak_tepat_waktu
+FROM
+	`konversis` 
